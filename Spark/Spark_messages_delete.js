@@ -185,9 +185,6 @@ httpRequest.prototype.disconnect = function() {
     this.httpMethod.releaseConnection();
 };
 
-
-
-
 //----------------------------------------------------------------------------------------
 // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
 // Description: Post a message into a Spark Room
@@ -232,14 +229,10 @@ function messageDelete(token,messageId) {
 // Workflow Inputs.
 var token = input.token;
 var messageId = input.messageId;
+var proxyHost = input.proxyHost;
+var proxyPort = input.proxyPort;
 
 var result = messageDelete(token,messageId);
-//logger.addInfo("Testing return: "+result);
 
 if( result )
-    logger.addInfo("Successfully posted message");
-    //output.messageId = result;
-
-
-// Register rollback task.
-//registerUndoTask(token,messageId);
+    logger.addInfo("Successfully deleted message");

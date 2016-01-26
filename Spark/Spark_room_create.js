@@ -261,12 +261,19 @@ function roomCreate(token,title) {
 
         if (output.has("id")) {
             var id = JSON.getJsonElement(request.getResponse("asString"), "id");
-            logger.addInfo("The created room ID is: "+id);
+            var sip = JSON.getJsonElement(request.getResponse("asString"), "sipAddress");
+            //logger.addInfo("The created room ID is: "+id+" and a SIP Address of :"+sip);
 
-            var cleanId = new String();
-            cleanId = id.toString().replace(/"/g, "");
-            logger.addInfo("The created room ID is: "+cleanId);
-            return cleanId
+            var roomId = new String();
+            roomId = id.toString().replace(/"/g, "");
+            logger.addInfo("The created room ID is: "+roomId);
+
+            var sipAddress = new String();
+            sipAddress = sip.toString().replace(/"/g, "");
+            logger.addInfo("The created room SIP Address is: "+sipAddress);
+
+            return [roomId, sipAddress];
+
           }
     }
 }
@@ -283,8 +290,17 @@ var proxyPort = input.proxyPort;
 
 
 var result = roomCreate(token,title);
-logger.addInfo("Testing return: "+result);
+logger.addInfo("Task creation return: "+result);
 
-if( result )
-    logger.addInfo("Successfully room created");
-    output.roomId = result;
+if(result) {
+    logger.addInfo("Successfully created room");
+    output.roomId = result[0];
+    output.sipAddress= result[1];
+}
+
+if (input.Rollback == 1) {
+    registerUndoTask(token,result[0]);
+    logger.addInfo("The rollback option has been enabled, you will be able to rollback the creation of the room.");
+} else {
+    logger.addInfo("You will not be able to rollback the creation of the room task due to 'no rollback' being selected.");
+}

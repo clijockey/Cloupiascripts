@@ -186,8 +186,6 @@ httpRequest.prototype.disconnect = function() {
 };
 
 
-
-
 //----------------------------------------------------------------------------------------
 // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
 // Description: Delete a memeber from a Spark group
@@ -195,7 +193,7 @@ httpRequest.prototype.disconnect = function() {
 function membershipDelete(token,messageId) {
   this.destination = "api.ciscospark.com";
   this.token = token;
-  this.messageId = messageId;
+  this.messageId = membershipId;
 
 
   var postURI = '/v1/messages/'+messageId

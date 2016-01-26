@@ -4,7 +4,7 @@
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
-// Version:             1.2 (updated 22/01/2016)
+// Version:             1.0 (updated 15/01/2016)
 // Dependencies:
 // Limitations/issues:  Updated for UCSD 5.4
 //=================================================================
@@ -92,11 +92,10 @@ httpRequest.prototype.setup = function(serverIp, transport, username, password) 
     if( this.transport == "https" ) {
 		this.httpClient = CustomEasySSLSocketFactory.getIgnoreSSLClient(this.serverIp, 443);
 
-        // Set proxy configuration if proxy info has been passed to the task
-        if (proxyHost) {
-            logger.addInfo("Proxy configuration has been passed, adding - "+proxyHost+":"+proxyPort);
-            this.httpClient.getHostConfiguration().setProxy(proxyHost, proxyPort);
-        }
+    // Set proxy configuration
+    if (proxyHost != null) {
+      this.httpClient.getHostConfiguration().setProxy(proxyHost, proxyPort);
+    }
 
 		this.httpClient.getParams().setCookiePolicy("default");
     } else {
@@ -323,10 +322,7 @@ if (result)
     output.messageId = result;
 
 
-// Register rollback task, this is an optional setting.
+// Register rollback task.
 if (input.Rollback == 1) {
-    registerUndoTask(token,result);
-    logger.addInfo("The rollback option has been enabled, you will be able to rollback to poting of the message.");
-} else {
-    logger.addInfo("You will not be able to rollback the post message task due to 'no rollback' being selected.");
+   registerUndoTask(token,result);
 }

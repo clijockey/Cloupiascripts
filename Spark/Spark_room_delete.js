@@ -219,7 +219,6 @@ function roomDelete(token,roomId) {
   } else {
       /// All done. Release HTTP connection anyway.
       request.disconnect();
-
       return true;
   }
 
@@ -232,14 +231,10 @@ function roomDelete(token,roomId) {
 // Workflow Inputs.
 var token = input.token;
 var roomId = input.roomId;
+var proxyHost = input.proxyHost;
+var proxyPort = input.proxyPort;
 
 var result = roomDelete(token,roomId);
-//logger.addInfo("Testing return: "+result);
 
 if( result )
     logger.addInfo("Successfully deleted room");
-    //output.messageId = result;
-
-
-// Register rollback task.
-//registerUndoTask(token,messageId);

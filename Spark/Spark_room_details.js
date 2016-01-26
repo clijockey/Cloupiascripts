@@ -1,6 +1,6 @@
 //=================================================================
-// Title:               Spark_messages_post
-// Description:         This will post a message to a specific spark group
+// Title:               Spark_room_details
+// Description:         This will get the details of a Spark room
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
@@ -186,147 +186,116 @@ httpRequest.prototype.disconnect = function() {
 };
 
 
-// function stripEndQuotes(s){
-// 	var t=s.length;
-// 	if (s.charAt(0)=='"') s=s.substring(1,t--);
-// 	if (s.charAt(--t)=='"') s=s.substring(0,t);
-// 	return s;
-// }
-//
-// String.prototype.unquoted = function (){
-//   return this.replace (/(^")|("$)/g, '')
-// }
+function clean(response, toClean) {
+  //----------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: Clean up the response by stripping out the extra ""
+  //----------------------------------------------------------------------------
+  this.response = response;
+  this.toClean = toClean;
 
-//----------------------------------------------------------------------------------------
-// Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-// Description: Post a message into a Spark Room
-//----------------------------------------------------------------------------------------
-function messagePost(token,roomId,message,file) {
-    this.destination = "api.ciscospark.com";
-    this.token = token;
-    this.roomId = roomId;
-    this.message = message;
-    this.file = file;
+  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
+  this.cleaned = new String();
+  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
 
-    // Construct JSON:
-    var body = new HashMap();
-    body.put("roomId", roomId);
-
-    // Check if this will be posting a message and/or file to the room
-    if (!message.equals("")) {
-      body.put("text", message);
-    }
-    if (!file.equals("")) {
-      body.put("file", file);
-    }
-    var jsonBody = JSON.javaToJsonString(body, body.getClass());
-    logger.addInfo("Sending JSON: " + jsonBody);
-
-    // Make Rest call
-    var request = new httpRequest();
-    request.setup(this.destination,"https");
-    request.postRequest('/v1/messages', jsonBody);
-    request.contentType("json");
-    request.addHeader("Authorization", token);
-
-    var statusCode = request.execute();
-
-    if (statusCode == 400) {
-        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-        logger.addInfo("Return code "+statusCode+": The request was invalid or cannot be otherwise served. An accompanying error message will explain further.");
-        logger.addInfo("Response received: "+request.getResponse("asString"));
-        // Set this task as failed.
-        ctxt.setFailed("Request failed.");
-    } else if (statusCode == 401) {
-        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-        logger.addInfo("Return code "+statusCode+": Authentication credentials were missing or incorrect.");
-        logger.addInfo("Response received: "+request.getResponse("asString"));
-        // Set this task as failed.
-        ctxt.setFailed("Request failed.");
-    } else if (statusCode == 403) {
-        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-        logger.addInfo("Return code "+statusCode+": The request is understood, but it has been refused or access is not allowed.");
-        logger.addInfo("Response received: "+request.getResponse("asString"));
-        // Set this task as failed.
-        ctxt.setFailed("Request failed.");
-    } else if (statusCode == 404) {
-        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-        logger.addInfo("Return code "+statusCode+": The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method.");
-        logger.addInfo("Response received: "+request.getResponse("asString"));
-        // Set this task as failed.
-        ctxt.setFailed("Request failed.");
-    } else if (statusCode == 409) {
-        logger.addWarn("Failed to configure Spark. HTTP response code: "+statusCode);
-        logger.addInfo("Return code "+statusCode+": The request could not be processed because it conflicts with some established rule of the system. For example, a person may not be added to a room more than once.");
-        logger.addInfo("Response received: "+request.getResponse("asString"));
-    } else if (statusCode == 500) {
-        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-        logger.addInfo("Return code "+statusCode+": Something went wrong on the server.");
-        logger.addInfo("Response received: "+request.getResponse("asString"));
-        // Set this task as failed.
-        ctxt.setFailed("Request failed.");
-    } else if (statusCode == 501) {
-        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-        logger.addInfo("Return code "+statusCode+": Server is overloaded with requests. Try again later.");
-        logger.addInfo("Response received: "+request.getResponse("asString"));
-        // Set this task as failed.
-        ctxt.setFailed("Request failed.");
-    } else {
-        logger.addInfo("All looks good. HTTP response code: "+statusCode);
-        var output = JSON.getJsonElement(request.getResponse("asString"),null);
-
-        if (output.has("id")) {
-            var id = JSON.getJsonElement(request.getResponse("asString"), "id");
-            logger.addInfo("The posted message ID is: "+id);
-
-            var cleanId = new String();
-            cleanId = id.toString().replace(/"/g, "");
-            logger.addInfo("The created message ID is: "+cleanId);
-            return cleanId
-        }
-    }
+  return this.cleaned;
 }
 
+function roomDetails(token,roomId) {
+  //----------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: Obtain the details of a Spark room
+  //----------------------------------------------------------------------------
+  //this.destination = "api.ciscospark.com";
+  this.token = token;
+  this.roomId = roomId;
 
-function registerUndoTask(token,messageId) {
-    // register undo task
-    var undoHandler = "custom_Spark_messages_delete1";
-    var undoContext = ctxt.createInnerTaskContext(undoHandler);
-    var undoConfig = undoContext.getConfigObject();
+  this.postURI = '/v1/rooms/'+this.roomId+"?showSipAddress=true"
+  logger.addInfo("The delete URL will be : "+this.postURI);
+  // Make Rest call
+  var request = new httpRequest();
+  request.setup("api.ciscospark.com","https");
+  request.getRequest(this.postURI);
+  request.contentType("json");
+  request.addHeader("Authorization", this.token);
 
-    // These are the variables that the rollback wf task gets called with.
-    undoConfig.token = token;
-    undoConfig.messageId = messageId;
+  this.statusCode = request.execute();
 
-    ctxt.getChangeTracker().undoableResourceModified("Rollback post message",
-                "","rollback ",
-                "Rollback Register New Host",undoHandler,undoConfig);
-}
+  if (statusCode == 400) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request was invalid or cannot be otherwise served. An accompanying error message will explain further.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 401) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Authentication credentials were missing or incorrect.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 403) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request is understood, but it has been refused or access is not allowed.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 404) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 409) {
+      logger.addWarn("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request could not be processed because it conflicts with some established rule of the system. For example, a person may not be added to a room more than once.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+  } else if (statusCode == 500) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Something went wrong on the server.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 501) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Server is overloaded with requests. Try again later.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else {
+      logger.addInfo("All looks good. HTTP response code: "+statusCode);
+      this.value = request.getResponse("asString");
+      logger.addInfo("Raw returned vaules: "+this.value);
 
-//////////////////////////////////////////////////////////////////////////////////////////
+      this.title = clean(value, "title");
+      this.created = clean(value, "created");
+      this.lastActivity = clean(value, "lastActivity");
+      this.sipAddress = clean(value, "sipAddress");
 
-// main();
+      request.disconnect();
+      return [this.title, this.created, this.lastActivity, this.sipAddress];
+      }
+  }
 
+
+////////////////////////////////////////////////////////////////////////////////
 // Workflow Inputs.
 var token = input.token;
-var message = input.message;
-var file = input.file;
 var roomId = input.roomId;
 var proxyHost = input.proxyHost;
 var proxyPort = input.proxyPort;
 
-var result = messagePost(token,roomId,message,file);
-logger.addInfo("Testing return: "+result);
+var result = roomDetails(token,roomId);
 
-if (result)
-    logger.addInfo("Successfully posted message");
-    output.messageId = result;
-
-
-// Register rollback task, this is an optional setting.
-if (input.Rollback == 1) {
-    registerUndoTask(token,result);
-    logger.addInfo("The rollback option has been enabled, you will be able to rollback to poting of the message.");
-} else {
-    logger.addInfo("You will not be able to rollback the post message task due to 'no rollback' being selected.");
+if(result) {
+    logger.addInfo("Successfully obtained details");
+    output.title = result[0];
+    output.created = result[1];
+    output.lastActivity = result[2];
+    output.sipAddress = result[3];
 }

@@ -199,7 +199,6 @@ function validateEmail(input) {
     return regEx.test(this.input);
 }
 
-
 function membershipsCreate(token,roomId,person,isModerator) {
   //----------------------------------------------------------------------------------------
   // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
