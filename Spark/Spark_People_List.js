@@ -6,7 +6,7 @@
 // Date:                18/12/2015
 // Version:             1.2 (updated 22/01/2016)
 // Dependencies:
-// Limitations/issues:  Updated for UCSD 5.4
+// Limitations/issues:  Updated for UCSD 5.4 and tested on 5.4.0.1
 //=================================================================
 
 importPackage(java.util);
