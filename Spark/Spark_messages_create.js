@@ -1,6 +1,6 @@
 //=================================================================
-// Title:               Spark_room_details
-// Description:         This will get the details of a Spark room
+// Title:               Spark_messages_create
+// Description:         This will post a message to a specific spark group
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
@@ -164,13 +164,6 @@ httpRequest.prototype.postRequest = function(uri,bodytext) {
     this.httpMethod.setRequestEntity(new StringRequestEntity(this.bodytext));
 };
 
-httpRequest.prototype.putRequest = function(uri) {
-    this.uri = uri;
-
-    // PUT Request.
-    this.httpMethod = new PutMethod(this.uri);
-};
-
 httpRequest.prototype.getResponse = function(asType) {
     this.asType = asType;
 
@@ -193,20 +186,6 @@ httpRequest.prototype.disconnect = function() {
 };
 
 
-function clean(response, toClean) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Clean up the response by stripping out the extra ""
-  //----------------------------------------------------------------------------
-  this.response = response;
-  this.toClean = toClean;
-
-  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
-  this.cleaned = new String();
-  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
-
-  return this.cleaned;
-}
 
 function statusCheck(statusCode) {
   //----------------------------------------------------------------------------
@@ -265,53 +244,108 @@ function statusCheck(statusCode) {
   }
 }
 
-function roomDetails(token,roomId) {
+function clean(response, toClean) {
   //----------------------------------------------------------------------------
   // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Obtain the details of a Spark room
+  // Description: Clean up the response by stripping out the extra ""
   //----------------------------------------------------------------------------
-  //this.destination = "api.ciscospark.com";
-  this.token = token;
-  this.roomId = roomId;
+  this.response = response;
+  this.toClean = toClean;
 
-  this.postURI = '/v1/rooms/'+this.roomId+"?showSipAddress=true"
-  logger.addInfo("The delete URL will be : "+this.postURI);
-  // Make Rest call
-  var request = new httpRequest();
-  request.setup("api.ciscospark.com","https");
-  request.getRequest(this.postURI);
-  request.contentType("json");
-  request.addHeader("Authorization", this.token);
-
-  this.statusCode = request.execute();
-  statusCheck(this.statusCode);
-
-  this.value = request.getResponse("asString");
-  logger.addInfo("Raw returned vaules: "+this.value);
-
-  this.title = clean(value, "title");
-  this.created = clean(value, "created");
-  this.lastActivity = clean(value, "lastActivity");
-  this.sipAddress = clean(value, "sipAddress");
-
-  request.disconnect();
-  return [this.title, this.created, this.lastActivity, this.sipAddress];
+  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
+  this.cleaned = new String();
+  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
+  logger.addInfo("Value cleaned up, returning :"+this.cleaned);
+  return this.cleaned;
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+function messagePost(token,roomId,message,file) {
+  //----------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: Post a message into a Spark Room
+  //----------------------------------------------------------------------------
+    this.destination = "api.ciscospark.com";
+    this.token = token;
+    this.roomId = roomId;
+    this.message = message;
+    this.file = file;
+
+    // Construct JSON:
+    var body = new HashMap();
+    body.put("roomId", roomId);
+
+    // Check if this will be posting a message and/or file to the room
+    if (!message.equals("")) {
+      body.put("text", message);
+    }
+    if (!file.equals("")) {
+      body.put("file", file);
+    }
+    var jsonBody = JSON.javaToJsonString(body, body.getClass());
+    logger.addInfo("Sending JSON: " + jsonBody);
+
+    // Make Rest call
+    var request = new httpRequest();
+    request.setup(this.destination,"https");
+    request.postRequest('/v1/messages', jsonBody);
+    request.contentType("json");
+    request.addHeader("Authorization", token);
+
+    var statusCode = request.execute();
+    statusCheck(statusCode);
+
+    this.value = request.getResponse("asString");
+    logger.addInfo("Raw returned vaules: "+this.value);
+
+    this.messageId = clean(value, "id");
+
+    request.disconnect();
+    return [messageId];
+}
+
+function registerUndoTask(token,messageId) {
+    // register undo task
+    var undoHandler = "custom_Spark_messages_delete";
+    var undoContext = ctxt.createInnerTaskContext(undoHandler);
+    var undoConfig = undoContext.getConfigObject();
+
+    // These are the variables that the rollback wf task gets called with.
+    undoConfig.token = token;
+    undoConfig.messageId = messageId;
+    undoConfig.proxyHost = proxyHost;
+    undoConfig.proxyPort = proxyPort;
+
+    ctxt.getChangeTracker().undoableResourceModified("Rollback post message",
+                "","rollback ",
+                "Rollback "+messageId+".",undoHandler,undoConfig);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+// main();
+
 // Workflow Inputs.
 var token = input.token;
+var message = input.message;
+var file = input.file;
 var roomId = input.roomId;
 var proxyHost = input.proxyHost;
 var proxyPort = input.proxyPort;
 
-var result = roomDetails(token,roomId);
+var result = messagePost(token,roomId,message,file);
+logger.addInfo("Testing return: "+result);
 
-if(result) {
-    logger.addInfo("Successfully obtained details");
-    output.title = result[0];
-    output.created = result[1];
-    output.lastActivity = result[2];
-    output.sipAddress = result[3];
+if (result)
+    logger.addInfo("Successfully posted message");
+    output.messageId = result[0];
+
+
+// Register rollback task, this is an optional setting.
+if (input.rollback == 1) {
+    registerUndoTask(token,result[0]);
+    logger.addInfo("The rollback option has been enabled, you will be able to rollback to poting of the message.");
+} else {
+    logger.addInfo("You will not be able to rollback the post message task due to 'no rollback' being selected.");
 }

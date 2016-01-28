@@ -1,6 +1,6 @@
 //=================================================================
-// Title:               Spark_room_details
-// Description:         This will get the details of a Spark room
+// Title:               Spark_membership_delete
+// Description:         This will delete a message from a specific spark group
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
@@ -164,13 +164,6 @@ httpRequest.prototype.postRequest = function(uri,bodytext) {
     this.httpMethod.setRequestEntity(new StringRequestEntity(this.bodytext));
 };
 
-httpRequest.prototype.putRequest = function(uri) {
-    this.uri = uri;
-
-    // PUT Request.
-    this.httpMethod = new PutMethod(this.uri);
-};
-
 httpRequest.prototype.getResponse = function(asType) {
     this.asType = asType;
 
@@ -192,21 +185,6 @@ httpRequest.prototype.disconnect = function() {
     this.httpMethod.releaseConnection();
 };
 
-
-function clean(response, toClean) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Clean up the response by stripping out the extra ""
-  //----------------------------------------------------------------------------
-  this.response = response;
-  this.toClean = toClean;
-
-  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
-  this.cleaned = new String();
-  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
-
-  return this.cleaned;
-}
 
 function statusCheck(statusCode) {
   //----------------------------------------------------------------------------
@@ -265,53 +243,43 @@ function statusCheck(statusCode) {
   }
 }
 
-function roomDetails(token,roomId) {
+function membershipDelete(token,membershipId) {
   //----------------------------------------------------------------------------
   // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Obtain the details of a Spark room
+  // Description: Delete a Spark Room memebership
   //----------------------------------------------------------------------------
-  //this.destination = "api.ciscospark.com";
+  this.destination = "api.ciscospark.com";
   this.token = token;
-  this.roomId = roomId;
+  this.membershipId = membershipId;
 
-  this.postURI = '/v1/rooms/'+this.roomId+"?showSipAddress=true"
-  logger.addInfo("The delete URL will be : "+this.postURI);
+
+  var postURI = '/v1/memberships/'+this.membershipId
+  logger.addInfo("The delete URL will : "+postURI);
   // Make Rest call
   var request = new httpRequest();
-  request.setup("api.ciscospark.com","https");
-  request.getRequest(this.postURI);
+  request.setup(this.destination,"https");
+  request.deleteRequest(postURI);
   request.contentType("json");
-  request.addHeader("Authorization", this.token);
+  request.addHeader("Authorization", token);
 
-  this.statusCode = request.execute();
-  statusCheck(this.statusCode);
-
-  this.value = request.getResponse("asString");
-  logger.addInfo("Raw returned vaules: "+this.value);
-
-  this.title = clean(value, "title");
-  this.created = clean(value, "created");
-  this.lastActivity = clean(value, "lastActivity");
-  this.sipAddress = clean(value, "sipAddress");
-
+  var statusCode = request.execute();
+  statusCheck(statusCode);
   request.disconnect();
-  return [this.title, this.created, this.lastActivity, this.sipAddress];
+  return true;
+
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
+// main();
+
 // Workflow Inputs.
 var token = input.token;
-var roomId = input.roomId;
+var membershipId = input.membershipId;
 var proxyHost = input.proxyHost;
 var proxyPort = input.proxyPort;
 
-var result = roomDetails(token,roomId);
+var result = membershipDelete(token,membershipId);
 
-if(result) {
-    logger.addInfo("Successfully obtained details");
-    output.title = result[0];
-    output.created = result[1];
-    output.lastActivity = result[2];
-    output.sipAddress = result[3];
-}
+if( result )
+    logger.addInfo("Successfully deleted membership");

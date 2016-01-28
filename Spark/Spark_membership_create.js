@@ -1,6 +1,8 @@
 //=================================================================
-// Title:               Spark_room_details
-// Description:         This will get the details of a Spark room
+// Title:               Spark_membership_create
+// Description:         This will add a user to a specific spark group,
+//                      you can user either the email address of the person
+//                      to add or the Spark personId.
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
@@ -164,13 +166,6 @@ httpRequest.prototype.postRequest = function(uri,bodytext) {
     this.httpMethod.setRequestEntity(new StringRequestEntity(this.bodytext));
 };
 
-httpRequest.prototype.putRequest = function(uri) {
-    this.uri = uri;
-
-    // PUT Request.
-    this.httpMethod = new PutMethod(this.uri);
-};
-
 httpRequest.prototype.getResponse = function(asType) {
     this.asType = asType;
 
@@ -193,20 +188,7 @@ httpRequest.prototype.disconnect = function() {
 };
 
 
-function clean(response, toClean) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Clean up the response by stripping out the extra ""
-  //----------------------------------------------------------------------------
-  this.response = response;
-  this.toClean = toClean;
-
-  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
-  this.cleaned = new String();
-  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
-
-  return this.cleaned;
-}
+//----------------------------------------------------------------------------------------
 
 function statusCheck(statusCode) {
   //----------------------------------------------------------------------------
@@ -265,53 +247,114 @@ function statusCheck(statusCode) {
   }
 }
 
-function roomDetails(token,roomId) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Obtain the details of a Spark room
-  //----------------------------------------------------------------------------
-  //this.destination = "api.ciscospark.com";
-  this.token = token;
-  this.roomId = roomId;
-
-  this.postURI = '/v1/rooms/'+this.roomId+"?showSipAddress=true"
-  logger.addInfo("The delete URL will be : "+this.postURI);
-  // Make Rest call
-  var request = new httpRequest();
-  request.setup("api.ciscospark.com","https");
-  request.getRequest(this.postURI);
-  request.contentType("json");
-  request.addHeader("Authorization", this.token);
-
-  this.statusCode = request.execute();
-  statusCheck(this.statusCode);
-
-  this.value = request.getResponse("asString");
-  logger.addInfo("Raw returned vaules: "+this.value);
-
-  this.title = clean(value, "title");
-  this.created = clean(value, "created");
-  this.lastActivity = clean(value, "lastActivity");
-  this.sipAddress = clean(value, "sipAddress");
-
-  request.disconnect();
-  return [this.title, this.created, this.lastActivity, this.sipAddress];
+function validateEmail(input) {
+    // A function to check if an input is an email address or not.
+    // It will return a ture or false email.
+    this.input = input;
+    var regEx = /[A-Z0-9._%+-]+@[A-Z0-9.-]+.[A-Z]{2,4}/igm;
+    return regEx.test(this.input);
 }
 
+function clean(response, toClean) {
+  //----------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: Clean up the response by stripping out the extra ""
+  //----------------------------------------------------------------------------
+  this.response = response;
+  this.toClean = toClean;
 
-////////////////////////////////////////////////////////////////////////////////
+  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
+  this.cleaned = new String();
+  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
+  logger.addInfo("Value cleaned up, returning :"+this.cleaned);
+  return this.cleaned;
+}
+
+function membershipsCreate(token,roomId,person,isModerator) {
+  //----------------------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: This will add a user to a specific spark group
+  //----------------------------------------------------------------------------------------
+    this.destination = "api.ciscospark.com";
+    this.token = token;                 //Required
+    this.roomId = roomId;               //Required
+    this.person = person                //Required
+    this.isModerator = isModerator;     //Optional
+
+    // Construct JSON:
+    var body = new HashMap();
+    body.put("roomId", this.roomId);
+
+    // Check to work out if a personId or personEmail has been input and form the correct JSON.
+    isEmail = validateEmail(this.person);
+    logger.addInfo("Its the person value "+this.person+" is an email?: "+isEmail);
+    if (isEmail == true){
+      logger.addInfo("Detected an email address therefore will add that to the room.");
+      body.put("personEmail", this.person);
+    } else {
+      logger.addInfo("Detected a personId therefore will add that person to the room.");
+      body.put("personId", this.person);
+    }
+
+    if (this.isModerator == 1) {
+        logger.addInfo("The membership will be created as a moderator.");
+        body.put("isModerator", "tru  e");
+    }
+
+    var jsonBody = JSON.javaToJsonString(body, body.getClass());
+    logger.addInfo("Sending JSON: " + jsonBody);
+
+    //Make Rest call
+    var request = new httpRequest();
+    request.setup(this.destination,"https");
+    request.postRequest('/v1/memberships', jsonBody);
+    request.contentType("json");
+    request.addHeader("Authorization", token);
+
+    var statusCode = request.execute();
+    statusCheck(statusCode);
+
+    this.value = request.getResponse("asString");
+    logger.addInfo("Raw returned vaules: "+this.value);
+
+    this.membershipId = clean(value, "id");
+
+    request.disconnect();
+    return [membershipId];
+}
+
+function registerUndoTask(token,membershipId) {
+    // register undo task
+    var undoHandler = "custom_Spark_membership_delete";
+    var undoContext = ctxt.createInnerTaskContext(undoHandler);
+    var undoConfig = undoContext.getConfigObject();
+
+    // These are the variables that the rollback wf task gets called with.
+    undoConfig.token = token;
+    undoConfig.membershipId = membershipId;
+    undoConfig.proxyHost = proxyHost;
+    undoConfig.proxyPort = proxyPort;
+
+    ctxt.getChangeTracker().undoableResourceModified("Rollback membership create",
+                "","rollback ",
+                "Rollback "+membershipId+".",undoHandler,undoConfig);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
 // Workflow Inputs.
 var token = input.token;
 var roomId = input.roomId;
+var person = input.person;
+var isModerator = input.isModerator;
 var proxyHost = input.proxyHost;
 var proxyPort = input.proxyPort;
 
-var result = roomDetails(token,roomId);
+var result = membershipsCreate(token,roomId,person,isModerator);
+logger.addInfo("Return: "+result);
 
-if(result) {
-    logger.addInfo("Successfully obtained details");
-    output.title = result[0];
-    output.created = result[1];
-    output.lastActivity = result[2];
-    output.sipAddress = result[3];
-}
+if(result)
+    logger.addInfo("Successfully added user to room");
+    output.membershipId = result[0];
+
+registerUndoTask(token,result[0]);

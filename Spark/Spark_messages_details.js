@@ -1,6 +1,6 @@
 //=================================================================
-// Title:               Spark_room_details
-// Description:         This will get the details of a Spark room
+// Title:               Spark_messages_details
+// Description:         This will get the details of a Spark message
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
@@ -203,8 +203,11 @@ function clean(response, toClean) {
 
   logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
   this.cleaned = new String();
-  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
-
+  if (JSON.getJsonElement(this.response, this.toClean)){
+    this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
+  } else {
+    this.cleaned = ""
+  }
   return this.cleaned;
 }
 
@@ -265,7 +268,7 @@ function statusCheck(statusCode) {
   }
 }
 
-function roomDetails(token,roomId) {
+function messageDetails(token,roomId) {
   //----------------------------------------------------------------------------
   // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
   // Description: Obtain the details of a Spark room
@@ -274,7 +277,7 @@ function roomDetails(token,roomId) {
   this.token = token;
   this.roomId = roomId;
 
-  this.postURI = '/v1/rooms/'+this.roomId+"?showSipAddress=true"
+  this.postURI = '/v1/messages/'+this.roomId
   logger.addInfo("The delete URL will be : "+this.postURI);
   // Make Rest call
   var request = new httpRequest();
@@ -289,29 +292,29 @@ function roomDetails(token,roomId) {
   this.value = request.getResponse("asString");
   logger.addInfo("Raw returned vaules: "+this.value);
 
-  this.title = clean(value, "title");
-  this.created = clean(value, "created");
-  this.lastActivity = clean(value, "lastActivity");
-  this.sipAddress = clean(value, "sipAddress");
+  output.roomId = clean(value, "roomId");
+  output.personId = clean(value, "personId");
+  output.personEmail = clean(value, "personEmail");
+  output.text = clean(value, "text");
+  output.files = clean(value, "files");
+  output.toPersonId = clean(value, "toPersonId");
+  output.toPersonEmail = clean(value, "toPersonEmail");
+  output.created = clean(value, "created");
 
   request.disconnect();
-  return [this.title, this.created, this.lastActivity, this.sipAddress];
+  return
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Workflow Inputs.
 var token = input.token;
-var roomId = input.roomId;
+var messageId = input.messageId;
 var proxyHost = input.proxyHost;
 var proxyPort = input.proxyPort;
 
-var result = roomDetails(token,roomId);
+var result = messageDetails(token,messageId);
 
 if(result) {
     logger.addInfo("Successfully obtained details");
-    output.title = result[0];
-    output.created = result[1];
-    output.lastActivity = result[2];
-    output.sipAddress = result[3];
 }

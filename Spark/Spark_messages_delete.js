@@ -1,12 +1,12 @@
 //=================================================================
 // Title:               Spark_messages_delete
-// Description:         This will post a message to a specific spark group
+// Description:         This will delete a message from a specific spark group
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
-// Version:             1.2 (updated 22/01/2016)
+// Version:             1.3 (updated 27/01/2016)
 // Dependencies:
-// Limitations/issues:  Updated for UCSD 5.4
+// Limitations/issues:  Updated for UCSD 5.4 and tested on 5.4.0.1
 //=================================================================
 
 importPackage(java.util);
@@ -185,17 +185,75 @@ httpRequest.prototype.disconnect = function() {
     this.httpMethod.releaseConnection();
 };
 
-//----------------------------------------------------------------------------------------
-// Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-// Description: Post a message into a Spark Room
-//----------------------------------------------------------------------------------------
+
+function statusCheck(statusCode) {
+  //----------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: Check the status code after Spark API call
+  //----------------------------------------------------------------------------
+
+  if ((statusCode == 200) || (statusCode == 204)) {
+      logger.addInfo("All looks good. HTTP response code: "+statusCode);
+      return
+  } else if (statusCode == 400) {
+        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+        logger.addInfo("Return code "+statusCode+": The request was invalid or cannot be otherwise served. An accompanying error message will explain further.");
+        logger.addError("Response received: "+request.getResponse("asString"));
+        // Set this task as failed.
+        ctxt.setFailed("Request failed.");
+  } else if (statusCode == 401) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Authentication credentials were missing or incorrect.");
+      logger.addEror("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 403) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request is understood, but it has been refused or access is not allowed.");
+      logger.addError("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 404) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method.");
+      logger.addError("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 409) {
+      logger.addWarn("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request could not be processed because it conflicts with some established rule of the system. For example, a person may not be added to a room more than once.");
+      logger.addError("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 500) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Something went wrong on the server.");
+      logger.addError("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 501) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Server is overloaded with requests. Try again later.");
+      logger.addError("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      ctxt.setFailed("Request failed.");
+  } else {
+      logger.addError("An unknown response code has occured therefore exiting: "+statusCode);
+      ctxt.setFailed("Request failed.");
+  }
+}
+
 function messageDelete(token,messageId) {
+  //----------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: Post a message into a Spark Room
+  //----------------------------------------------------------------------------
   this.destination = "api.ciscospark.com";
   this.token = token;
   this.messageId = messageId;
 
 
-  var postURI = '/v1/messages/'+messageId
+  var postURI = '/v1/messages/'+this.messageId
   logger.addInfo("The delete URL will : "+postURI);
   // Make Rest call
   var request = new httpRequest();
@@ -205,20 +263,29 @@ function messageDelete(token,messageId) {
   request.addHeader("Authorization", token);
 
   var statusCode = request.execute();
-  if (statusCode != 204) {
-      logger.addError("Request failed. HTTP response code: "+statusCode);
-      logger.addError("Response = "+request.getResponse("asString"));
+  statusCheck(statusCode);
+  request.disconnect();
+  return true;
 
-      request.disconnect();
 
-      // Set this task as failed.
-      ctxt.setFailed("Request failed.");
-  } else {
-      /// All done. Release HTTP connection anyway.
-      request.disconnect();
 
-      return true;
-  }
+
+
+  // var statusCode = request.execute();
+  // if (statusCode != 204) {
+  //     logger.addError("Request failed. HTTP response code: "+statusCode);
+  //     logger.addError("Response = "+request.getResponse("asString"));
+  //
+  //     request.disconnect();
+  //
+  //     // Set this task as failed.
+  //     ctxt.setFailed("Request failed.");
+  // } else {
+  //     /// All done. Release HTTP connection anyway.
+  //     request.disconnect();
+  //
+  //     return true;
+  // }
 
 }
 

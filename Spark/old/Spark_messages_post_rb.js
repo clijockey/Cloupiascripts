@@ -1,12 +1,12 @@
 //=================================================================
-// Title:               Spark_room_details
-// Description:         This will get the details of a Spark room
+// Title:               Spark_messages_post
+// Description:         This will post a message to a specific spark group
 //
 // Author:              Rob Edwards (@clijockey/robedwa@cisco.com)
 // Date:                18/12/2015
-// Version:             1.3 (updated 27/01/2016)
+// Version:             1.0 (updated 15/01/2016)
 // Dependencies:
-// Limitations/issues:  Updated for UCSD 5.4 and tested on 5.4.0.1
+// Limitations/issues:  Updated for UCSD 5.4
 //=================================================================
 
 importPackage(java.util);
@@ -92,11 +92,10 @@ httpRequest.prototype.setup = function(serverIp, transport, username, password) 
     if( this.transport == "https" ) {
 		this.httpClient = CustomEasySSLSocketFactory.getIgnoreSSLClient(this.serverIp, 443);
 
-        // Set proxy configuration if proxy info has been passed to the task
-        if (proxyHost) {
-            logger.addInfo("Proxy configuration has been passed, adding - "+proxyHost+":"+proxyPort);
-            this.httpClient.getHostConfiguration().setProxy(proxyHost, proxyPort);
-        }
+    // Set proxy configuration
+    if (proxyHost != null) {
+      this.httpClient.getHostConfiguration().setProxy(proxyHost, proxyPort);
+    }
 
 		this.httpClient.getParams().setCookiePolicy("default");
     } else {
@@ -164,13 +163,6 @@ httpRequest.prototype.postRequest = function(uri,bodytext) {
     this.httpMethod.setRequestEntity(new StringRequestEntity(this.bodytext));
 };
 
-httpRequest.prototype.putRequest = function(uri) {
-    this.uri = uri;
-
-    // PUT Request.
-    this.httpMethod = new PutMethod(this.uri);
-};
-
 httpRequest.prototype.getResponse = function(asType) {
     this.asType = asType;
 
@@ -193,125 +185,144 @@ httpRequest.prototype.disconnect = function() {
 };
 
 
-function clean(response, toClean) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Clean up the response by stripping out the extra ""
-  //----------------------------------------------------------------------------
-  this.response = response;
-  this.toClean = toClean;
+// function stripEndQuotes(s){
+// 	var t=s.length;
+// 	if (s.charAt(0)=='"') s=s.substring(1,t--);
+// 	if (s.charAt(--t)=='"') s=s.substring(0,t);
+// 	return s;
+// }
+//
+// String.prototype.unquoted = function (){
+//   return this.replace (/(^")|("$)/g, '')
+// }
 
-  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
-  this.cleaned = new String();
-  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
+//----------------------------------------------------------------------------------------
+// Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+// Description: Post a message into a Spark Room
+//----------------------------------------------------------------------------------------
+function messagePost(token,roomId,message,file) {
+    this.destination = "api.ciscospark.com";
+    this.token = token;
+    this.roomId = roomId;
+    this.message = message;
+    this.file = file;
 
-  return this.cleaned;
-}
+    // Construct JSON:
+    var body = new HashMap();
+    body.put("roomId", roomId);
 
-function statusCheck(statusCode) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Check the status code after Spark API call
-  //----------------------------------------------------------------------------
+    // Check if this will be posting a message and/or file to the room
+    if (!message.equals("")) {
+      body.put("text", message);
+    }
+    if (!file.equals("")) {
+      body.put("file", file);
+    }
+    var jsonBody = JSON.javaToJsonString(body, body.getClass());
+    logger.addInfo("Sending JSON: " + jsonBody);
 
-  if ((statusCode == 200) || (statusCode == 204)) {
-      logger.addInfo("All looks good. HTTP response code: "+statusCode);
-      return
-  } else if (statusCode == 400) {
+    // Make Rest call
+    var request = new httpRequest();
+    request.setup(this.destination,"https");
+    request.postRequest('/v1/messages', jsonBody);
+    request.contentType("json");
+    request.addHeader("Authorization", token);
+
+    var statusCode = request.execute();
+
+    if (statusCode == 400) {
         logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
         logger.addInfo("Return code "+statusCode+": The request was invalid or cannot be otherwise served. An accompanying error message will explain further.");
-        logger.addError("Response received: "+request.getResponse("asString"));
+        logger.addInfo("Response received: "+request.getResponse("asString"));
         // Set this task as failed.
         ctxt.setFailed("Request failed.");
-  } else if (statusCode == 401) {
-      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-      logger.addInfo("Return code "+statusCode+": Authentication credentials were missing or incorrect.");
-      logger.addEror("Response received: "+request.getResponse("asString"));
-      // Set this task as failed.
-      ctxt.setFailed("Request failed.");
-  } else if (statusCode == 403) {
-      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-      logger.addInfo("Return code "+statusCode+": The request is understood, but it has been refused or access is not allowed.");
-      logger.addError("Response received: "+request.getResponse("asString"));
-      // Set this task as failed.
-      ctxt.setFailed("Request failed.");
-  } else if (statusCode == 404) {
-      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-      logger.addInfo("Return code "+statusCode+": The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method.");
-      logger.addError("Response received: "+request.getResponse("asString"));
-      // Set this task as failed.
-      ctxt.setFailed("Request failed.");
-  } else if (statusCode == 409) {
-      logger.addWarn("Failed to configure Spark. HTTP response code: "+statusCode);
-      logger.addInfo("Return code "+statusCode+": The request could not be processed because it conflicts with some established rule of the system. For example, a person may not be added to a room more than once.");
-      logger.addError("Response received: "+request.getResponse("asString"));
-      // Set this task as failed.
-      ctxt.setFailed("Request failed.");
-  } else if (statusCode == 500) {
-      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-      logger.addInfo("Return code "+statusCode+": Something went wrong on the server.");
-      logger.addError("Response received: "+request.getResponse("asString"));
-      // Set this task as failed.
-      ctxt.setFailed("Request failed.");
-  } else if (statusCode == 501) {
-      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
-      logger.addInfo("Return code "+statusCode+": Server is overloaded with requests. Try again later.");
-      logger.addError("Response received: "+request.getResponse("asString"));
-      // Set this task as failed.
-      ctxt.setFailed("Request failed.");
-  } else {
-      logger.addError("An unknown response code has occured therefore exiting: "+statusCode);
-      ctxt.setFailed("Request failed.");
-  }
-}
+    } else if (statusCode == 401) {
+        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+        logger.addInfo("Return code "+statusCode+": Authentication credentials were missing or incorrect.");
+        logger.addInfo("Response received: "+request.getResponse("asString"));
+        // Set this task as failed.
+        ctxt.setFailed("Request failed.");
+    } else if (statusCode == 403) {
+        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+        logger.addInfo("Return code "+statusCode+": The request is understood, but it has been refused or access is not allowed.");
+        logger.addInfo("Response received: "+request.getResponse("asString"));
+        // Set this task as failed.
+        ctxt.setFailed("Request failed.");
+    } else if (statusCode == 404) {
+        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+        logger.addInfo("Return code "+statusCode+": The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method.");
+        logger.addInfo("Response received: "+request.getResponse("asString"));
+        // Set this task as failed.
+        ctxt.setFailed("Request failed.");
+    } else if (statusCode == 409) {
+        logger.addWarn("Failed to configure Spark. HTTP response code: "+statusCode);
+        logger.addInfo("Return code "+statusCode+": The request could not be processed because it conflicts with some established rule of the system. For example, a person may not be added to a room more than once.");
+        logger.addInfo("Response received: "+request.getResponse("asString"));
+    } else if (statusCode == 500) {
+        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+        logger.addInfo("Return code "+statusCode+": Something went wrong on the server.");
+        logger.addInfo("Response received: "+request.getResponse("asString"));
+        // Set this task as failed.
+        ctxt.setFailed("Request failed.");
+    } else if (statusCode == 501) {
+        logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+        logger.addInfo("Return code "+statusCode+": Server is overloaded with requests. Try again later.");
+        logger.addInfo("Response received: "+request.getResponse("asString"));
+        // Set this task as failed.
+        ctxt.setFailed("Request failed.");
+    } else {
+        logger.addInfo("All looks good. HTTP response code: "+statusCode);
+        var output = JSON.getJsonElement(request.getResponse("asString"),null);
 
-function roomDetails(token,roomId) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Obtain the details of a Spark room
-  //----------------------------------------------------------------------------
-  //this.destination = "api.ciscospark.com";
-  this.token = token;
-  this.roomId = roomId;
+        if (output.has("id")) {
+            var id = JSON.getJsonElement(request.getResponse("asString"), "id");
+            logger.addInfo("The posted message ID is: "+id);
 
-  this.postURI = '/v1/rooms/'+this.roomId+"?showSipAddress=true"
-  logger.addInfo("The delete URL will be : "+this.postURI);
-  // Make Rest call
-  var request = new httpRequest();
-  request.setup("api.ciscospark.com","https");
-  request.getRequest(this.postURI);
-  request.contentType("json");
-  request.addHeader("Authorization", this.token);
-
-  this.statusCode = request.execute();
-  statusCheck(this.statusCode);
-
-  this.value = request.getResponse("asString");
-  logger.addInfo("Raw returned vaules: "+this.value);
-
-  this.title = clean(value, "title");
-  this.created = clean(value, "created");
-  this.lastActivity = clean(value, "lastActivity");
-  this.sipAddress = clean(value, "sipAddress");
-
-  request.disconnect();
-  return [this.title, this.created, this.lastActivity, this.sipAddress];
+            var cleanId = new String();
+            cleanId = id.toString().replace(/"/g, "");
+            logger.addInfo("The created message ID is: "+cleanId);
+            return cleanId
+        }
+    }
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
+function registerUndoTask(token,messageId) {
+    // register undo task
+    var undoHandler = "custom_Spark_messages_delete1";
+    var undoContext = ctxt.createInnerTaskContext(undoHandler);
+    var undoConfig = undoContext.getConfigObject();
+
+    // These are the variables that the rollback wf task gets called with.
+    undoConfig.token = token;
+    undoConfig.messageId = messageId;
+
+    ctxt.getChangeTracker().undoableResourceModified("Rollback post message",
+                "","rollback ",
+                "Rollback Register New Host",undoHandler,undoConfig);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+// main();
+
 // Workflow Inputs.
 var token = input.token;
+var message = input.message;
+var file = input.file;
 var roomId = input.roomId;
 var proxyHost = input.proxyHost;
 var proxyPort = input.proxyPort;
 
-var result = roomDetails(token,roomId);
+var result = messagePost(token,roomId,message,file);
+logger.addInfo("Testing return: "+result);
 
-if(result) {
-    logger.addInfo("Successfully obtained details");
-    output.title = result[0];
-    output.created = result[1];
-    output.lastActivity = result[2];
-    output.sipAddress = result[3];
+if (result)
+    logger.addInfo("Successfully posted message");
+    output.messageId = result;
+
+
+// Register rollback task.
+if (input.Rollback == 1) {
+   registerUndoTask(token,result);
 }

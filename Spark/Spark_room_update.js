@@ -6,7 +6,7 @@
 // Date:                18/12/2015
 // Version:             1.3 (updated 27/01/2016)
 // Dependencies:
-// Limitations/issues:  Updated for UCSD 5.4 and tested on 5.4.0.1
+// Limitations/issues:  Updated for UCSD 5.4
 //=================================================================
 
 importPackage(java.util);
@@ -192,22 +192,6 @@ httpRequest.prototype.disconnect = function() {
     this.httpMethod.releaseConnection();
 };
 
-
-function clean(response, toClean) {
-  //----------------------------------------------------------------------------
-  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
-  // Description: Clean up the response by stripping out the extra ""
-  //----------------------------------------------------------------------------
-  this.response = response;
-  this.toClean = toClean;
-
-  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
-  this.cleaned = new String();
-  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
-
-  return this.cleaned;
-}
-
 function statusCheck(statusCode) {
   //----------------------------------------------------------------------------
   // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
@@ -265,7 +249,23 @@ function statusCheck(statusCode) {
   }
 }
 
-function roomDetails(token,roomId) {
+
+function clean(response, toClean) {
+  //----------------------------------------------------------------------------
+  // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
+  // Description: Clean up the response by stripping out the extra ""
+  //----------------------------------------------------------------------------
+  this.response = response;
+  this.toClean = toClean;
+
+  logger.addInfo("Running through a clean up to ontain the "+toClean+" value.");
+  this.cleaned = new String();
+  this.cleaned = JSON.getJsonElement(this.response, this.toClean).toString().replace(/"/g, "");
+
+  return this.cleaned;
+}
+
+function roomUpdate(token,roomId) {
   //----------------------------------------------------------------------------
   // Author:      Rob Edwards (@clijockey/robedwa@cisco.com)
   // Description: Obtain the details of a Spark room
@@ -279,24 +279,72 @@ function roomDetails(token,roomId) {
   // Make Rest call
   var request = new httpRequest();
   request.setup("api.ciscospark.com","https");
-  request.getRequest(this.postURI);
+  request.putRequest(this.postURI);
   request.contentType("json");
   request.addHeader("Authorization", this.token);
 
   this.statusCode = request.execute();
-  statusCheck(this.statusCode);
 
-  this.value = request.getResponse("asString");
-  logger.addInfo("Raw returned vaules: "+this.value);
+  if (statusCode == 400) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request was invalid or cannot be otherwise served. An accompanying error message will explain further.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 401) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Authentication credentials were missing or incorrect.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 403) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request is understood, but it has been refused or access is not allowed.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 404) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 409) {
+      logger.addWarn("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": The request could not be processed because it conflicts with some established rule of the system. For example, a person may not be added to a room more than once.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+  } else if (statusCode == 500) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Something went wrong on the server.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else if (statusCode == 501) {
+      logger.addError("Failed to configure Spark. HTTP response code: "+statusCode);
+      logger.addInfo("Return code "+statusCode+": Server is overloaded with requests. Try again later.");
+      logger.addInfo("Response received: "+request.getResponse("asString"));
+      // Set this task as failed.
+      request.disconnect();
+      ctxt.setFailed("Request failed.");
+  } else {
+      logger.addInfo("All looks good. HTTP response code: "+statusCode);
+      this.value = request.getResponse("asString");
+      logger.addInfo("Raw returned vaules: "+this.value);
 
-  this.title = clean(value, "title");
-  this.created = clean(value, "created");
-  this.lastActivity = clean(value, "lastActivity");
-  this.sipAddress = clean(value, "sipAddress");
+      this.title = clean(value, "title");
+      this.created = clean(value, "created");
+      this.lastActivity = clean(value, "lastActivity");
+      this.sipAddress = clean(value, "sipAddress");
 
-  request.disconnect();
-  return [this.title, this.created, this.lastActivity, this.sipAddress];
-}
+      request.disconnect();
+      return [this.title, this.created, this.lastActivity, this.sipAddress];
+      }
+  }
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,3 +363,5 @@ if(result) {
     output.lastActivity = result[2];
     output.sipAddress = result[3];
 }
+// Need to include the script to take and log the existing room name in a variable to allow for rollback functionality
+// Need to work out how puMethod woudl work and pass JSON
