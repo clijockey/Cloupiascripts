@@ -320,25 +320,25 @@ function membershipsCreate(token,roomId,person,isModerator) {
     this.membershipId = clean(value, "id");
 
     request.disconnect();
-    return [membershipId];
+    return [this.membershipId];
 }
 
-function registerUndoTask(token,membershipId) {
-    // register undo task
-    var undoHandler = "custom_Spark_membership_delete";
-    var undoContext = ctxt.createInnerTaskContext(undoHandler);
-    var undoConfig = undoContext.getConfigObject();
-
-    // These are the variables that the rollback wf task gets called with.
-    undoConfig.token = token;
-    undoConfig.membershipId = membershipId;
-    undoConfig.proxyHost = proxyHost;
-    undoConfig.proxyPort = proxyPort;
-
-    ctxt.getChangeTracker().undoableResourceModified("Rollback membership create",
-                "","rollback ",
-                "Rollback "+membershipId+".",undoHandler,undoConfig);
-}
+// function registerUndoTask(token,membershipId) {
+//     // register undo task
+//     var undoHandler = "custom_Spark_membership_delete";
+//     var undoContext = ctxt.createInnerTaskContext(undoHandler);
+//     var undoConfig = undoContext.getConfigObject();
+// 
+//     // These are the variables that the rollback wf task gets called with.
+//     undoConfig.token = token;
+//     undoConfig.membershipId = membershipId;
+//     undoConfig.proxyHost = proxyHost;
+//     undoConfig.proxyPort = proxyPort;
+//
+//     ctxt.getChangeTracker().undoableResourceModified("Rollback membership create",
+//                 "","rollback ",
+//                 "Rollback "+membershipId+".",undoHandler,undoConfig);
+// }
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -357,4 +357,4 @@ if(result)
     logger.addInfo("Successfully added user to room");
     output.membershipId = result[0];
 
-registerUndoTask(token,result[0]);
+//registerUndoTask(token,result[0]);

@@ -288,7 +288,7 @@ function roomCreate(token,title) {
 
     this.value = request.getResponse("asString");
     logger.addInfo("Raw returned vaules: "+this.value);
-
+ "65fuyby3tgbuy3tvb3833"
 
     this.roomId = clean(value, "id");
 
